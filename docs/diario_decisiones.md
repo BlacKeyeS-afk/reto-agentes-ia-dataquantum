@@ -17,3 +17,10 @@
 - Se utiliza `python-dotenv` para cargar `GROQ_API_KEY` desde `.env`.
 - Las credenciales reales nunca se almacenarán en Git.
 - Por ahora no se utilizarán LangChain ni LangGraph, para entender primero el funcionamiento directo de una API de LLM.
+
+## 2026-08-17 — Primera conexión real con Groq
+
+- Se realizó con éxito la primera conexión real con Groq.
+- Se verificó toda la cadena `.env` → Python → SDK → API → modelo → respuesta.
+- Codex mostró `conexi�n` por un problema de codificación de su terminal, pero la respuesta real recibida era `conexión correcta`.
+- Se decidió utilizar identificadores de código en inglés y mantener en español los mensajes de interfaz.
