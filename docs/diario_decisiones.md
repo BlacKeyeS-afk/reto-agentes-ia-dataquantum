@@ -24,3 +24,24 @@
 - Se verificó toda la cadena `.env` → Python → SDK → API → modelo → respuesta.
 - Codex mostró `conexi�n` por un problema de codificación de su terminal, pero la respuesta real recibida era `conexión correcta`.
 - Se decidió utilizar identificadores de código en inglés y mantener en español los mensajes de interfaz.
+
+## 2026-08-17 — Evolución del Nivel Básico a múltiples preguntas
+
+- La primera versión solo permitía realizar una pregunta.
+- Se evolucionó a un bucle `while` para permitir múltiples preguntas.
+- Se utiliza `break` cuando el usuario escribe `salir`.
+- Se utiliza `continue` cuando la entrada está vacía o cuando una consulta falla.
+- Se utiliza `.strip()` para eliminar espacios exteriores.
+- Se utiliza `.casefold()` para reconocer `salir` independientemente de mayúsculas o minúsculas.
+- El cliente de Groq se crea una única vez antes del bucle.
+- Cada petición contiene únicamente la pregunta actual.
+- Todavía no existe memoria ni historial, porque se implementarán en el Nivel Intermedio.
+- Los errores de una consulta no cierran completamente el programa; el usuario puede seguir preguntando.
+
+### Pruebas realizadas y revalidadas el 2026-08-20
+
+- Entrada formada solo por espacios seguida de `salir`: mostró `Debes escribir una pregunta.`, volvió a solicitar una entrada, no llamó a Groq y finalizó con `Hasta luego.`.
+- Comando `SALIR` en una ejecución nueva: se reconoció independientemente de las mayúsculas, no llamó a Groq y finalizó con `Hasta luego.`.
+- Sesión con dos preguntas y `salir`: realizó exactamente dos llamadas, respondió `Roma.` a la pregunta sobre la capital de Italia, respondió `15` a la suma y finalizó correctamente.
+- Aislamiento entre preguntas: se comprobó en el código que cada petición crea una lista `messages` nueva con solo la pregunta actual, sin memoria ni historial.
+- No se produjeron errores reales del programa durante estas pruebas.
