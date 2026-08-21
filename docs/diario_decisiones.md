@@ -96,3 +96,23 @@
 - Se añadieron comentarios para facilitar la comprensión del código.
 - Los comentarios se centran en decisiones de diseño, flujo y manejo de errores.
 - Se evitó comentar instrucciones evidentes para mantener el código limpio.
+
+## 2026-08-21 — Experimentación con system prompts
+
+Se comparó el mismo modelo, `openai/gpt-oss-120b`, con la pregunta común `Explícame qué es una API.` y tres mensajes system independientes:
+
+- Prompt A: `Eres un asistente útil, claro y conciso.`
+- Prompt B: `Eres un profesor de programación paciente. Explica los conceptos paso a paso con ejemplos sencillos.`
+- Prompt C: `Eres un asistente técnico experto. Responde de forma breve, precisa y profesional.`
+
+### Diferencias observadas
+
+- Prompt A: utilizó un tono general y claro, pero produjo una respuesta extensa. Incluyó definición, funcionamiento, usos, tipos de API, tablas, un ejemplo y buenas prácticas.
+- Prompt B: generó la respuesta más larga y didáctica. Explicó paso a paso, empleó la analogía de un restaurante e incluyó tablas, ejemplos con cURL, JavaScript y Python, además de un ejercicio práctico.
+- Prompt C: produjo la respuesta más breve, precisa y técnica. Resumió definición, tipos y ventajas mediante una estructura profesional, sin desarrollar ejemplos de código.
+
+### Conclusión
+
+- El mensaje system condiciona de forma visible el tono, la longitud, el detalle, la claridad, el uso de ejemplos y la orientación didáctica o técnica, incluso manteniendo el mismo modelo y la misma pregunta.
+- El Prompt C parece el más adecuado para el asistente del Nivel Intermedio porque ofrece respuestas técnicas, profesionales y concisas, apropiadas para una interacción ágil en terminal. El Prompt B sería preferible en un contexto específicamente educativo.
+- No se produjeron errores reales durante las tres llamadas.
