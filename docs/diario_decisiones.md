@@ -65,3 +65,34 @@
 - Estructura del historial: tras dos intercambios correctos queda conceptualmente como `system`, `user`, `assistant`, `user`, `assistant`.
 - Protección ante fallos: con un cliente local simulado se comprobó que una excepción y una respuesta vacía eliminan únicamente la pregunta fallida y conservan intacto el historial anterior.
 - No se produjeron errores reales del programa durante estas pruebas.
+
+## 2026-08-21 — Persistencia del historial en JSON
+
+- Se añadió persistencia en JSON al finalizar una conversación con el comando `salir`.
+- La memoria durante la ejecución continúa utilizando la lista `messages` en RAM.
+- El JSON funciona como historial persistente en disco después de cerrar el programa.
+- Los archivos se guardan en `conversaciones/` con fecha y hora en el nombre; si ya existe el nombre, se añade un sufijo para evitar sobrescrituras.
+- Se utilizan únicamente `json`, `datetime` y `pathlib` de la biblioteca estándar.
+- El JSON se genera con `indent=2` y `ensure_ascii=False` para que resulte legible y conserve correctamente tildes y otros caracteres Unicode.
+- No se guardan credenciales, la clave de Groq ni el contenido de `.env`.
+- Una sesión sin preguntas no genera ningún archivo de conversación.
+- Si el guardado falla, se muestra un mensaje genérico y el programa continúa su cierre sin mostrar un traceback.
+- Se mantiene separado el concepto de memoria temporal en RAM y persistencia del historial en disco.
+
+### Pruebas realizadas
+
+- Salida sin preguntas: no creó ningún JSON y mostró que no había conversación que guardar.
+- Conversación con memoria: realizó exactamente dos llamadas a Groq, recordó el nombre JP y guardó un archivo con los roles `system`, `user`, `assistant`, `user`, `assistant`.
+- Validación del archivo: el JSON contiene fecha y modelo, es sintácticamente válido, conserva caracteres como `¿`, `¡` y tildes de forma legible, y no contiene credenciales.
+- Protección contra sobrescrituras: dos guardados locales en el mismo segundo generaron nombres diferentes y conservaron intacto el primer archivo.
+- No se produjeron errores reales del programa durante estas pruebas.
+
+### Privacidad de los historiales
+
+- Los historiales JSON se generan localmente y no se versionan por privacidad; la carpeta `conversaciones/` se conserva en el repositorio mediante `.gitkeep`.
+
+### Legibilidad del código
+
+- Se añadieron comentarios para facilitar la comprensión del código.
+- Los comentarios se centran en decisiones de diseño, flujo y manejo de errores.
+- Se evitó comentar instrucciones evidentes para mantener el código limpio.
