@@ -116,3 +116,39 @@ Se comparó el mismo modelo, `openai/gpt-oss-120b`, con la pregunta común `Expl
 - El mensaje system condiciona de forma visible el tono, la longitud, el detalle, la claridad, el uso de ejemplos y la orientación didáctica o técnica, incluso manteniendo el mismo modelo y la misma pregunta.
 - El Prompt C parece el más adecuado para el asistente del Nivel Intermedio porque ofrece respuestas técnicas, profesionales y concisas, apropiadas para una interacción ágil en terminal. El Prompt B sería preferible en un contexto específicamente educativo.
 - No se produjeron errores reales durante las tres llamadas.
+
+## 2026-08-21 — Nivel Intermedio completado
+
+El Nivel Intermedio queda formalmente cerrado después de implementar y comprobar:
+
+- Memoria conversacional mediante una lista `messages` con los roles `system`, `user` y `assistant`, conservando el contexto durante una misma ejecución.
+- Manejo consistente del historial: `messages.pop()` elimina la pregunta actual si falla una consulta y las respuestas vacías se consideran errores.
+- Persistencia del historial en archivos JSON con fecha y hora, prevención de sobrescrituras y formato legible mediante `ensure_ascii=False` e `indent=2`.
+- Privacidad de las conversaciones mediante `.gitignore`, conservación de `conversaciones/` mediante `.gitkeep` y ausencia de credenciales en Git.
+- Experimentación controlada con tres system prompts y comparación de tono, longitud, detalle y orientación.
+- Elección razonada del Prompt C para un asistente técnico por su estilo breve, preciso y profesional.
+- Comentarios en el código centrados en decisiones importantes, flujo y manejo de errores.
+- Ejecución correcta de las pruebas funcionales, de memoria, persistencia, privacidad y system prompts.
+
+### Diferencia respecto al Nivel Básico
+
+- Nivel Básico: cada petición contiene únicamente la pregunta actual.
+- Nivel Intermedio: cada petición envía el historial acumulado de `messages`.
+
+### Conceptos aprendidos
+
+- Memoria en RAM.
+- Persistencia en disco.
+- System prompts.
+- Roles de conversación.
+- Manejo consistente del historial.
+- JSON.
+- Privacidad de datos.
+- Pruebas controladas.
+
+### Estado
+
+- Nivel Básico: **COMPLETADO**
+- Nivel Intermedio: **COMPLETADO**
+- Nivel Avanzado: **PENDIENTE**
+- Nivel Experto: **PENDIENTE**
