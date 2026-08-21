@@ -45,3 +45,23 @@
 - Sesión con dos preguntas y `salir`: realizó exactamente dos llamadas, respondió `Roma.` a la pregunta sobre la capital de Italia, respondió `15` a la suma y finalizó correctamente.
 - Aislamiento entre preguntas: se comprobó en el código que cada petición crea una lista `messages` nueva con solo la pregunta actual, sin memoria ni historial.
 - No se produjeron errores reales del programa durante estas pruebas.
+
+## 2026-08-21 — Memoria conversacional del Nivel Intermedio
+
+- Se creó `src/nivel_intermedio.py` sin modificar el Nivel Básico.
+- Se introdujo una lista `messages` persistente durante la ejecución.
+- El historial comienza con un mensaje con `role="system"`.
+- Cada pregunta válida se añade con `role="user"` y se envía a Groq toda la lista `messages`.
+- Cada respuesta válida se añade con `role="assistant"`, lo que permite memoria conversacional dentro de una misma ejecución.
+- La memoria todavía no persiste al cerrar el programa.
+- Si una llamada falla o la respuesta no contiene texto válido, se elimina la última pregunta mediante `pop()` para mantener consistente el historial.
+- Las entradas vacías y el comando `salir` no modifican `messages`.
+
+### Pruebas realizadas
+
+- Entrada formada solo por espacios seguida de `salir`: mostró el aviso, no llamó a Groq y finalizó correctamente.
+- Comando `SALIR`: se reconoció en mayúsculas, no llamó a Groq y mostró `Hasta luego.`.
+- Memoria conversacional: en una sesión con exactamente dos llamadas, el usuario indicó que se llamaba JP y la segunda respuesta fue `JP`.
+- Estructura del historial: tras dos intercambios correctos queda conceptualmente como `system`, `user`, `assistant`, `user`, `assistant`.
+- Protección ante fallos: con un cliente local simulado se comprobó que una excepción y una respuesta vacía eliminan únicamente la pregunta fallida y conservan intacto el historial anterior.
+- No se produjeron errores reales del programa durante estas pruebas.
