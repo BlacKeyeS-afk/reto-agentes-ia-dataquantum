@@ -152,3 +152,26 @@ El Nivel Intermedio queda formalmente cerrado después de implementar y comproba
 - Nivel Intermedio: **COMPLETADO**
 - Nivel Avanzado: **PENDIENTE**
 - Nivel Experto: **PENDIENTE**
+
+## 2026-08-22 — Primer tool calling real del Nivel Avanzado
+
+Se creó `src/nivel_avanzado.py` sin modificar los niveles anteriores y se implementó una única herramienta local segura llamada `calculate`. El modelo no ejecuta Python directamente: solicita el uso de la herramienta y Python valida la petición antes de decidir si la ejecuta. No se utiliza `eval()` y las operaciones permitidas forman una lista cerrada: `add`, `subtract`, `multiply` y `divide`.
+
+Los argumentos recibidos del modelo se interpretan como JSON y se validan antes de utilizarlos, incluyendo su estructura, tipos, nombres, operación y valores finitos. Cuando la solicitud es válida, el resultado local se devuelve al modelo mediante `role="tool"`, conservando el `tool_call_id`, y se realiza una segunda llamada para que el modelo redacte la respuesta final.
+
+### Pruebas reales
+
+- Prueba matemática, `27 × 14`: el modelo solicitó `calculate` con `operation=multiply`, Python obtuvo localmente `378` y la respuesta final fue correcta.
+- Pregunta normal, `¿Qué es Python?`: el modelo no solicitó herramientas y respondió directamente.
+- División entre cero, `10 / 0`: el modelo respondió directamente que la operación es indefinida y no ejecutó `calculate`. La protección local frente a la división entre cero ya estaba validada mediante pruebas locales.
+
+### Seguridad
+
+- La única herramienta permitida está declarada explícitamente y su nombre se valida antes de ejecutarla.
+- Los argumentos y sus tipos se validan, y la operación debe pertenecer al `enum` permitido.
+- No se utiliza `eval()` ni se permite la ejecución arbitraria de código.
+- Los errores se controlan sin mostrar tracebacks al usuario.
+
+### Resultado
+
+No se produjeron errores reales ni incompatibilidades con Groq. Las pruebas finalizaron correctamente.
