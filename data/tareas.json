@@ -1,0 +1,26 @@
+[
+  {
+    "nombre": "estudiar Python",
+    "prioridad": "alta",
+    "duracion_minutos": 90,
+    "categoria": "estudio"
+  },
+  {
+    "nombre": "preparar presentación",
+    "prioridad": "media",
+    "duracion_minutos": 60,
+    "categoria": "trabajo"
+  },
+  {
+    "nombre": "ir al gimnasio",
+    "prioridad": "media",
+    "duracion_minutos": 75,
+    "categoria": "salud"
+  },
+  {
+    "nombre": "hacer compra",
+    "prioridad": "alta",
+    "duracion_minutos": 45,
+    "categoria": "hogar"
+  }
+]

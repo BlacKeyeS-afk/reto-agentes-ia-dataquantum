@@ -175,3 +175,28 @@ Los argumentos recibidos del modelo se interpretan como JSON y se validan antes 
 ### Resultado
 
 No se produjeron errores reales ni incompatibilidades con Groq. Las pruebas finalizaron correctamente.
+
+## 2026-08-24 — Selección entre múltiples herramientas
+
+Se añadió una segunda herramienta local llamada `get_task_info` y se creó `data/tareas.json` con datos ficticios y no sensibles. La nueva herramienta permite consultar la prioridad, la duración y la categoría de una tarea, mientras que `calculate` se mantiene como herramienta para operaciones matemáticas básicas.
+
+El modelo recibe ambas tools y decide cuál utilizar según la pregunta. Antes de ejecutar una función, Python valida explícitamente el nombre de la herramienta y sus argumentos. El despacho se mantiene cerrado y explícito para impedir la ejecución arbitraria de código.
+
+### Pruebas
+
+- Calculadora, `18 × 7`: el modelo seleccionó `calculate` con `operation=multiply`, se obtuvo localmente `126` y la respuesta final fue correcta.
+- Consulta de tareas, duración y prioridad de `estudiar Python`: el modelo seleccionó `get_task_info` y respondió con los datos reales del JSON, `90` minutos y prioridad `alta`.
+- Pregunta general, qué es una API: el modelo no solicitó ninguna herramienta y respondió directamente.
+
+### Casos límite
+
+- Una herramienta desconocida se rechaza.
+- Un `task_name` ausente, vacío o inválido se rechaza antes de ejecutar la función.
+- Una tarea inexistente se maneja mediante un resultado estructurado.
+- Un fichero con JSON inválido se controla sin mostrar traceback.
+- Los tipos incorrectos recibidos por `calculate` se rechazan.
+- No se utilizan `eval()`, `exec()` ni mecanismos de ejecución arbitraria.
+
+### Resultado
+
+Todas las pruebas pasaron, sin errores reales ni incompatibilidades con Groq. Esta versión todavía admite una única solicitud de herramienta por respuesta y no incorpora un bucle agentic de múltiples pasos.

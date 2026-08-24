@@ -9,12 +9,14 @@ from groq import Groq
 
 
 MODEL_NAME = "openai/gpt-oss-120b"
-TOOL_NAME = "calculate"
+CALCULATOR_TOOL_NAME = "calculate"
+TASK_INFO_TOOL_NAME = "get_task_info"
 ALLOWED_OPERATIONS = ("add", "subtract", "multiply", "divide")
+TASKS_FILE = Path(__file__).resolve().parent.parent / "data" / "tareas.json"
 CALCULATOR_TOOL = {
     "type": "function",
     "function": {
-        "name": TOOL_NAME,
+        "name": CALCULATOR_TOOL_NAME,
         "description": "Realiza operaciones matemáticas básicas.",
         "parameters": {
             "type": "object",
@@ -38,6 +40,28 @@ CALCULATOR_TOOL = {
         },
     },
 }
+TASK_INFO_TOOL = {
+    "type": "function",
+    "function": {
+        "name": TASK_INFO_TOOL_NAME,
+        "description": (
+            "Consulta la prioridad, duración y categoría de una tarea concreta "
+            "almacenada en la lista local de tareas."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "task_name": {
+                    "type": "string",
+                    "description": "Nombre exacto de la tarea que se desea consultar.",
+                }
+            },
+            "required": ["task_name"],
+            "additionalProperties": False,
+        },
+    },
+}
+AVAILABLE_TOOLS = [CALCULATOR_TOOL, TASK_INFO_TOOL]
 
 
 def calculate(operation: str, a: float, b: float) -> float:
@@ -54,6 +78,61 @@ def calculate(operation: str, a: float, b: float) -> float:
         return a / b
 
     raise ValueError("La operación solicitada no está permitida.")
+
+
+def get_task_info(task_name: str) -> dict[str, Any]:
+    if not isinstance(task_name, str) or not task_name.strip():
+        return {"found": False, "error": "El nombre de la tarea no es válido."}
+
+    try:
+        tasks = json.loads(TASKS_FILE.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {"found": False, "error": "No se encontró el fichero de tareas."}
+    except json.JSONDecodeError:
+        return {"found": False, "error": "El fichero de tareas no contiene JSON válido."}
+    except (OSError, UnicodeError):
+        return {"found": False, "error": "No se pudo leer el fichero de tareas."}
+
+    if not isinstance(tasks, list):
+        return {"found": False, "error": "El fichero de tareas tiene una estructura inválida."}
+
+    normalized_name = task_name.strip().casefold()
+    for task in tasks:
+        if not isinstance(task, dict):
+            continue
+
+        name = task.get("nombre")
+        if not isinstance(name, str) or name.strip().casefold() != normalized_name:
+            continue
+
+        priority = task.get("prioridad")
+        duration = task.get("duracion_minutos")
+        category = task.get("categoria")
+        if (
+            not isinstance(priority, str)
+            or isinstance(duration, bool)
+            or not isinstance(duration, (int, float))
+            or not isinstance(category, str)
+        ):
+            return {
+                "found": False,
+                "error": "La tarea encontrada tiene una estructura inválida.",
+            }
+
+        return {
+            "found": True,
+            "task": {
+                "nombre": name,
+                "prioridad": priority,
+                "duracion_minutos": duration,
+                "categoria": category,
+            },
+        }
+
+    return {
+        "found": False,
+        "error": f"No se encontró la tarea '{task_name.strip()}'.",
+    }
 
 
 def parse_calculate_arguments(raw_arguments: str) -> tuple[str, float, float]:
@@ -91,6 +170,25 @@ def parse_calculate_arguments(raw_arguments: str) -> tuple[str, float, float]:
     return operation, a_value, b_value
 
 
+def parse_task_arguments(raw_arguments: str) -> str:
+    try:
+        arguments = json.loads(raw_arguments)
+    except (json.JSONDecodeError, TypeError):
+        raise ValueError("Los argumentos no contienen JSON válido.") from None
+
+    if not isinstance(arguments, dict):
+        raise ValueError("Los argumentos deben formar un objeto JSON.")
+
+    if set(arguments) != {"task_name"}:
+        raise ValueError("Los argumentos deben contener únicamente task_name.")
+
+    task_name = arguments["task_name"]
+    if not isinstance(task_name, str) or not task_name.strip():
+        raise ValueError("task_name debe ser una cadena de texto no vacía.")
+
+    return task_name.strip()
+
+
 def main() -> None:
     print("=== Asistente IA - Nivel Avanzado ===")
 
@@ -117,8 +215,9 @@ def main() -> None:
         {
             "role": "system",
             "content": (
-                "Eres un asistente técnico. Usa la herramienta calculate cuando "
-                "la pregunta requiera una operación matemática básica."
+                "Eres un asistente técnico. Usa calculate para operaciones "
+                "matemáticas básicas y get_task_info para consultar información "
+                "de una tarea de la lista local."
             ),
         },
         {"role": "user", "content": question},
@@ -128,7 +227,7 @@ def main() -> None:
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=messages,
-            tools=[CALCULATOR_TOOL],
+            tools=AVAILABLE_TOOLS,
             tool_choice="auto",
         )
     except Exception:
@@ -155,17 +254,27 @@ def main() -> None:
         return
 
     tool_call = tool_calls[0]
-    if tool_call.type != "function" or tool_call.function.name != TOOL_NAME:
+    if tool_call.type != "function":
         print("Error: el modelo solicitó una herramienta no permitida.")
         return
     if not tool_call.id:
         print("Error: la solicitud de herramienta no contiene un identificador.")
         return
 
-    # Los argumentos del modelo se validan antes de llamar a Python.
+    tool_name = tool_call.function.name
+    raw_arguments = tool_call.function.arguments
+
+    # El despacho explícito limita la ejecución a las dos funciones permitidas.
     try:
-        operation, a, b = parse_calculate_arguments(tool_call.function.arguments)
-        result = calculate(operation, a, b)
+        if tool_name == CALCULATOR_TOOL_NAME:
+            operation, a, b = parse_calculate_arguments(raw_arguments)
+            tool_result = {"result": calculate(operation, a, b)}
+        elif tool_name == TASK_INFO_TOOL_NAME:
+            task_name = parse_task_arguments(raw_arguments)
+            tool_result = get_task_info(task_name)
+        else:
+            print("Error: el modelo solicitó una herramienta no permitida.")
+            return
     except ValueError as error:
         print(f"Error al ejecutar la herramienta: {error}")
         return
@@ -177,8 +286,8 @@ def main() -> None:
                 "id": tool_call.id,
                 "type": "function",
                 "function": {
-                    "name": TOOL_NAME,
-                    "arguments": tool_call.function.arguments,
+                    "name": tool_name,
+                    "arguments": raw_arguments,
                 },
             }
         ],
@@ -191,7 +300,7 @@ def main() -> None:
         {
             "role": "tool",
             "tool_call_id": tool_call.id,
-            "content": json.dumps({"result": result}, ensure_ascii=False),
+            "content": json.dumps(tool_result, ensure_ascii=False),
         }
     )
 
