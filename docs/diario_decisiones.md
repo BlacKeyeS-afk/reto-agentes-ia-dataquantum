@@ -200,3 +200,35 @@ El modelo recibe ambas tools y decide cuál utilizar según la pregunta. Antes d
 ### Resultado
 
 Todas las pruebas pasaron, sin errores reales ni incompatibilidades con Groq. Esta versión todavía admite una única solicitud de herramienta por respuesta y no incorpora un bucle agentic de múltiples pasos.
+
+## 2026-08-24 — Bucle agentic multipaso
+
+Se sustituyó el flujo limitado a una única herramienta por un bucle agentic. En cada ronda, el modelo puede devolver una o varias `tool_calls`; Python valida todas las solicitudes antes de ejecutar la primera y después ejecuta las herramientas en el orden solicitado por el modelo.
+
+Cada resultado se añade a la conversación con `role="tool"` y conserva su `tool_call_id`. El agente vuelve a consultar al modelo y repite el ciclo hasta obtener una respuesta final en lenguaje natural. Se añadió `MAX_AGENT_STEPS = 5` como límite configurable para evitar bucles infinitos.
+
+### Prueba multipaso
+
+Pregunta: `¿Cuánto dura estudiar Python y cuántos minutos serían si hiciera esa tarea 3 veces?`
+
+Flujo observado:
+
+`get_task_info` → `90 minutos` → `calculate` → `90 × 3` → `270 minutos` → respuesta final.
+
+El orden de las herramientas fue decidido por el modelo y no se codificó manualmente.
+
+### Otras pruebas
+
+- Uso exclusivo de `calculate`.
+- Uso exclusivo de `get_task_info`.
+- Respuesta directa sin herramientas.
+- Rechazo de una herramienta desconocida.
+- Rechazo de argumentos inválidos.
+- Control de la división entre cero.
+- Manejo estructurado de una tarea inexistente.
+- Control de una respuesta vacía.
+- Activación local del límite `MAX_AGENT_STEPS` mediante un cliente simulado.
+
+### Resultado
+
+Todas las pruebas pasaron, sin errores reales ni incompatibilidades con Groq. El agente puede encadenar herramientas correctamente hasta construir una respuesta final.

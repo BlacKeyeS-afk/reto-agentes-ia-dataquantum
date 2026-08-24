@@ -9,6 +9,7 @@ from groq import Groq
 
 
 MODEL_NAME = "openai/gpt-oss-120b"
+MAX_AGENT_STEPS = 5
 CALCULATOR_TOOL_NAME = "calculate"
 TASK_INFO_TOOL_NAME = "get_task_info"
 ALLOWED_OPERATIONS = ("add", "subtract", "multiply", "divide")
@@ -189,6 +190,118 @@ def parse_task_arguments(raw_arguments: str) -> str:
     return task_name.strip()
 
 
+def run_agent(client: Any, messages: list[dict[str, Any]]) -> None:
+    # El límite evita que una sucesión de tool calls mantenga el agente en bucle.
+    for _ in range(MAX_AGENT_STEPS):
+        try:
+            response = client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=messages,
+                tools=AVAILABLE_TOOLS,
+                tool_choice="auto",
+            )
+        except Exception:
+            print("Error al consultar Groq.")
+            return
+
+        if not response.choices:
+            print("Error: el modelo devolvió una respuesta vacía.")
+            return
+
+        assistant_message = response.choices[0].message
+        tool_calls = assistant_message.tool_calls or []
+
+        if not tool_calls:
+            assistant_content = assistant_message.content
+            if not assistant_content or not assistant_content.strip():
+                print("Error: el modelo devolvió una respuesta vacía.")
+                return
+            print(f"IA: {assistant_content}")
+            return
+
+        prepared_calls: list[dict[str, Any]] = []
+        assistant_tool_calls: list[dict[str, Any]] = []
+
+        # Se validan todas las solicitudes antes de ejecutar la primera función.
+        for tool_call in tool_calls:
+            if tool_call.type != "function" or tool_call.function is None:
+                print("Error: el modelo solicitó una herramienta no permitida.")
+                return
+            if not tool_call.id:
+                print("Error: la solicitud de herramienta no contiene un identificador.")
+                return
+
+            tool_name = tool_call.function.name
+            raw_arguments = tool_call.function.arguments
+
+            try:
+                if tool_name == CALCULATOR_TOOL_NAME:
+                    validated_arguments = parse_calculate_arguments(raw_arguments)
+                elif tool_name == TASK_INFO_TOOL_NAME:
+                    validated_arguments = (parse_task_arguments(raw_arguments),)
+                else:
+                    print("Error: el modelo solicitó una herramienta no permitida.")
+                    return
+            except ValueError as error:
+                print(f"Error al ejecutar la herramienta: {error}")
+                return
+
+            prepared_calls.append(
+                {
+                    "id": tool_call.id,
+                    "name": tool_name,
+                    "validated_arguments": validated_arguments,
+                }
+            )
+            assistant_tool_calls.append(
+                {
+                    "id": tool_call.id,
+                    "type": "function",
+                    "function": {
+                        "name": tool_name,
+                        "arguments": raw_arguments,
+                    },
+                }
+            )
+
+        assistant_tool_message: dict[str, Any] = {
+            "role": "assistant",
+            "tool_calls": assistant_tool_calls,
+        }
+        if assistant_message.content:
+            assistant_tool_message["content"] = assistant_message.content
+        messages.append(assistant_tool_message)
+
+        # Las herramientas se ejecutan en el mismo orden solicitado por el modelo.
+        for prepared_call in prepared_calls:
+            tool_name = prepared_call["name"]
+            validated_arguments = prepared_call["validated_arguments"]
+
+            try:
+                if tool_name == CALCULATOR_TOOL_NAME:
+                    operation, a, b = validated_arguments
+                    tool_result = {"result": calculate(operation, a, b)}
+                elif tool_name == TASK_INFO_TOOL_NAME:
+                    (task_name,) = validated_arguments
+                    tool_result = get_task_info(task_name)
+                else:
+                    print("Error: el modelo solicitó una herramienta no permitida.")
+                    return
+            except ValueError as error:
+                print(f"Error al ejecutar la herramienta: {error}")
+                return
+
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": prepared_call["id"],
+                    "content": json.dumps(tool_result, ensure_ascii=False),
+                }
+            )
+
+    print("Error: se alcanzó el máximo de pasos del agente sin una respuesta final.")
+
+
 def main() -> None:
     print("=== Asistente IA - Nivel Avanzado ===")
 
@@ -216,113 +329,14 @@ def main() -> None:
             "role": "system",
             "content": (
                 "Eres un asistente técnico. Usa calculate para operaciones "
-                "matemáticas básicas y get_task_info para consultar información "
-                "de una tarea de la lista local."
+                "matemáticas, incluso si dependen de datos obtenidos previamente, "
+                "y get_task_info para consultar información de una tarea local. "
+                "Continúa usando herramientas hasta poder responder con precisión."
             ),
         },
         {"role": "user", "content": question},
     ]
-
-    try:
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=messages,
-            tools=AVAILABLE_TOOLS,
-            tool_choice="auto",
-        )
-    except Exception:
-        print("Error al consultar Groq.")
-        return
-
-    if not response.choices:
-        print("Error: el modelo devolvió una respuesta vacía.")
-        return
-
-    assistant_message = response.choices[0].message
-    tool_calls = assistant_message.tool_calls or []
-
-    if not tool_calls:
-        assistant_content = assistant_message.content
-        if not assistant_content or not assistant_content.strip():
-            print("Error: el modelo devolvió una respuesta vacía.")
-            return
-        print(f"IA: {assistant_content}")
-        return
-
-    if len(tool_calls) != 1:
-        print("Error: se esperaba una única solicitud de herramienta.")
-        return
-
-    tool_call = tool_calls[0]
-    if tool_call.type != "function":
-        print("Error: el modelo solicitó una herramienta no permitida.")
-        return
-    if not tool_call.id:
-        print("Error: la solicitud de herramienta no contiene un identificador.")
-        return
-
-    tool_name = tool_call.function.name
-    raw_arguments = tool_call.function.arguments
-
-    # El despacho explícito limita la ejecución a las dos funciones permitidas.
-    try:
-        if tool_name == CALCULATOR_TOOL_NAME:
-            operation, a, b = parse_calculate_arguments(raw_arguments)
-            tool_result = {"result": calculate(operation, a, b)}
-        elif tool_name == TASK_INFO_TOOL_NAME:
-            task_name = parse_task_arguments(raw_arguments)
-            tool_result = get_task_info(task_name)
-        else:
-            print("Error: el modelo solicitó una herramienta no permitida.")
-            return
-    except ValueError as error:
-        print(f"Error al ejecutar la herramienta: {error}")
-        return
-
-    assistant_tool_message: dict[str, Any] = {
-        "role": "assistant",
-        "tool_calls": [
-            {
-                "id": tool_call.id,
-                "type": "function",
-                "function": {
-                    "name": tool_name,
-                    "arguments": raw_arguments,
-                },
-            }
-        ],
-    }
-    if assistant_message.content:
-        assistant_tool_message["content"] = assistant_message.content
-
-    messages.append(assistant_tool_message)
-    messages.append(
-        {
-            "role": "tool",
-            "tool_call_id": tool_call.id,
-            "content": json.dumps(tool_result, ensure_ascii=False),
-        }
-    )
-
-    try:
-        final_response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=messages,
-        )
-    except Exception:
-        print("Error al obtener la respuesta final de Groq.")
-        return
-
-    if not final_response.choices:
-        print("Error: el modelo devolvió una respuesta final vacía.")
-        return
-
-    final_content = final_response.choices[0].message.content
-    if not final_content or not final_content.strip():
-        print("Error: el modelo devolvió una respuesta final vacía.")
-        return
-
-    print(f"IA: {final_content}")
+    run_agent(client, messages)
 
 
 if __name__ == "__main__":
