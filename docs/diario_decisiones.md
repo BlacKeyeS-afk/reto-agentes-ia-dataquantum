@@ -232,3 +232,41 @@ El orden de las herramientas fue decidido por el modelo y no se codificó manual
 ### Resultado
 
 Todas las pruebas pasaron, sin errores reales ni incompatibilidades con Groq. El agente puede encadenar herramientas correctamente hasta construir una respuesta final.
+
+## 2026-08-24 — Nivel Avanzado completado
+
+El Nivel Avanzado queda formalmente cerrado después de implementar y comprobar:
+
+- Tool use / function calling y descripción de herramientas mediante JSON Schema.
+- Las herramientas `calculate` y `get_task_info`, incluida la selección correcta entre ambas y la respuesta directa cuando no se necesita ninguna.
+- Validación explícita del nombre y de los argumentos antes de ejecutar Python, con rechazo de JSON inválido, tipos incorrectos y herramientas desconocidas, además del control de la división entre cero.
+- Despacho cerrado y seguro, sin `eval()`, `exec()`, `getattr()` dinámico ni mecanismos de ejecución arbitraria.
+- Devolución de resultados mediante `role="tool"` y conservación de cada `tool_call_id`.
+- Bucle agentic multipaso capaz de procesar varias `tool_calls`, validarlas todas antes de ejecutar la primera y ejecutarlas en el orden solicitado.
+- Límite de seguridad configurable mediante `MAX_AGENT_STEPS = 5`.
+- Encadenado real `get_task_info` → `calculate` → respuesta final.
+- Pruebas locales y reales completadas, incluidas las situaciones límite, sin errores reales ni incompatibilidades con Groq.
+
+### Diferencia respecto al Nivel Intermedio
+
+- Nivel Intermedio: el modelo conversa con memoria y conserva el contexto durante una misma ejecución.
+- Nivel Avanzado: el modelo, además, puede solicitar herramientas, recibir sus resultados y continuar el razonamiento hasta producir una respuesta final.
+
+### Conceptos aprendidos
+
+- Tool use / function calling.
+- JSON Schema.
+- Validación de entradas generadas por el modelo.
+- Despacho seguro de herramientas.
+- `tool_call_id` y `role="tool"`.
+- Bucle agentic.
+- Encadenado de herramientas.
+- Límites de seguridad.
+- Pruebas de casos límite.
+
+### Estado
+
+- Nivel Básico: **COMPLETADO**
+- Nivel Intermedio: **COMPLETADO**
+- Nivel Avanzado: **COMPLETADO**
+- Nivel Experto: **PENDIENTE**
