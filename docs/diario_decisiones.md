@@ -270,3 +270,30 @@ El Nivel Avanzado queda formalmente cerrado después de implementar y comprobar:
 - Nivel Intermedio: **COMPLETADO**
 - Nivel Avanzado: **COMPLETADO**
 - Nivel Experto: **PENDIENTE**
+
+## 2026-08-24 — Arquitectura del Nivel Experto: LangGraph
+
+Se evaluó continuar con el agent loop manual o utilizar LangGraph. La versión manual ya funciona y permanecerá disponible en `src/nivel_avanzado.py`.
+
+Se decide utilizar LangGraph en el Nivel Experto para estudiar una arquitectura basada en estado, nodos y transiciones. Se mantendrá inicialmente el SDK oficial de Groq, sin migrar todavía a ChatGroq ni LangChain. También se conservarán `calculate`, `get_task_info` y todas sus validaciones.
+
+LangGraph sustituirá principalmente el bucle manual, las decisiones de ruta y el control de transiciones. La seguridad y la validación de las tools seguirán siendo responsabilidad de nuestro código Python. Esta elección permitirá comparar la arquitectura manual con una basada en un framework, sin considerar que una sea universalmente mejor que la otra.
+
+### Alternativa considerada
+
+Continuar completamente "a mano".
+
+Ventajas:
+
+- Menor número de dependencias.
+- Control explícito.
+- Código ya probado.
+
+Inconvenientes:
+
+- `run_agent` concentra demasiadas responsabilidades.
+- Escalar las rutas y los estados complicaría progresivamente la función.
+
+### Razón de la elección
+
+LangGraph se adopta porque ahora ya existe suficiente comprensión del flujo manual para evaluar con criterio qué abstracción aporta el framework.
