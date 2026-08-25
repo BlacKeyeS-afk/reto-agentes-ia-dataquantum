@@ -1,8 +1,12 @@
 """Lógica del futuro nodo de herramientas del grafo experto."""
 
 import json
-from typing import TypedDict
+from typing import Any, Literal, TypedDict
 
+from langgraph.graph import END, START, StateGraph
+
+from .agent import AgentError, call_model, prepare_agent_state_update
+from .config import MAX_AGENT_STEPS
 from .state import AgentState
 from .tools import (
     CALCULATOR_TOOL_NAME,
@@ -23,6 +27,14 @@ class PreparedToolCall(TypedDict):
     id: str
     name: str
     arguments: str
+
+
+def _agent_limit_error() -> str:
+    """Devuelve el mensaje común del límite semántico del agente."""
+    return (
+        f"Se alcanzó el límite de {MAX_AGENT_STEPS} llamadas al modelo "
+        "sin obtener una respuesta final."
+    )
 
 
 def _validate_tool_arguments(tool_name: str, raw_arguments: str) -> None:
@@ -145,3 +157,87 @@ def tools_node(state: AgentState) -> AgentState:
         "final_answer": None,
         "error": None,
     }
+
+
+def agent_node(state: AgentState, client: Any) -> AgentState:
+    """Consulta al modelo o detiene el flujo ante error o límite semántico."""
+    if state["error"] is not None:
+        return {
+            "messages": list(state["messages"]),
+            "agent_steps": state["agent_steps"],
+            "final_answer": state["final_answer"],
+            "error": state["error"],
+        }
+
+    if state["agent_steps"] >= MAX_AGENT_STEPS:
+        return {
+            "messages": list(state["messages"]),
+            "agent_steps": state["agent_steps"],
+            "final_answer": None,
+            "error": _agent_limit_error(),
+        }
+
+    try:
+        normalized_response = call_model(client, state["messages"])
+        updated_state = prepare_agent_state_update(state, normalized_response)
+        if (
+            updated_state["agent_steps"] >= MAX_AGENT_STEPS
+            and updated_state["final_answer"] is None
+        ):
+            return {
+                "messages": updated_state["messages"],
+                "agent_steps": updated_state["agent_steps"],
+                "final_answer": None,
+                "error": _agent_limit_error(),
+            }
+        return updated_state
+    except AgentError as error:
+        # La llamada intentada cuenta como paso aunque termine con un error controlado.
+        return {
+            "messages": list(state["messages"]),
+            "agent_steps": state["agent_steps"] + 1,
+            "final_answer": None,
+            "error": str(error),
+        }
+
+
+def route_after_agent(state: AgentState) -> Literal["tools", "end"]:
+    """Decide si el grafo ejecuta herramientas o finaliza."""
+    if state["error"] is not None or state["final_answer"] is not None:
+        return "end"
+    if state["agent_steps"] >= MAX_AGENT_STEPS:
+        return "end"
+
+    messages = state["messages"]
+    if messages:
+        last_message = messages[-1]
+        if (
+            isinstance(last_message, dict)
+            and last_message.get("role") == "assistant"
+            and isinstance(last_message.get("tool_calls"), list)
+            and bool(last_message["tool_calls"])
+        ):
+            return "tools"
+
+    # Un estado sin respuesta, error ni herramientas no debe volver a entrar al bucle.
+    return "end"
+
+
+def build_graph(client: Any) -> Any:
+    """Construye y compila el StateGraph inyectando el cliente del modelo."""
+    graph_builder = StateGraph(AgentState)
+
+    def run_agent_node(state: AgentState) -> AgentState:
+        return agent_node(state, client)
+
+    graph_builder.add_node("agent", run_agent_node)
+    graph_builder.add_node("tools", tools_node)
+    graph_builder.add_edge(START, "agent")
+    graph_builder.add_conditional_edges(
+        "agent",
+        route_after_agent,
+        {"tools": "tools", "end": END},
+    )
+    graph_builder.add_edge("tools", "agent")
+
+    return graph_builder.compile()
