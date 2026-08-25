@@ -297,3 +297,38 @@ Inconvenientes:
 ### Razón de la elección
 
 LangGraph se adopta porque ahora ya existe suficiente comprensión del flujo manual para evaluar con criterio qué abstracción aporta el framework.
+
+## 2026-08-25 — Aplicación ejecutable del Nivel Experto
+
+Se completó `src/experto/main.py` como punto de entrada funcional del asistente. El programa ya puede ejecutarse desde la raíz del proyecto mediante:
+
+```powershell
+.venv\Scripts\python.exe -m src.experto.main
+```
+
+`main.py` se limita a la interfaz de terminal, la carga de configuración y la ejecución del grafo. La llamada y normalización del modelo, las herramientas y sus validaciones, y la construcción de LangGraph permanecen separadas en sus respectivos módulos.
+
+Se resolvió la incidencia real de Unicode observada en Windows configurando `stdout` como UTF-8 cuando la salida permite `reconfigure()`. La solución es defensiva: comprueba primero que ese método esté disponible y permite que la aplicación continúe en entornos donde no exista o no se pueda utilizar.
+
+### Pruebas reales
+
+**Prueba directa:** se preguntó qué es un set de Python. El agente realizó una llamada a Groq, no solicitó herramientas y devolvió una respuesta correcta.
+
+**Prueba con `calculate`:** se solicitó calcular `16 × 7`. El modelo pidió `calculate`, la herramienta devolvió `112` y el agente redactó correctamente la respuesta final.
+
+**Prueba de tarea:** se consultó la duración de `estudiar Python` y el tiempo necesario para realizarla dos veces. El modelo solicitó `get_task_info`, obtuvo una duración de `90 minutos` y respondió correctamente que dos repeticiones requieren `180 minutos`.
+
+En la tercera prueba, el modelo **no solicitó `calculate`**. Después de recibir los 90 minutos mediante `get_task_info`, realizó por sí mismo la multiplicación por dos. Esto no se considera un error: el modelo decide cuándo necesita una herramienta, la respuesta final fue correcta y el flujo del grafo terminó correctamente.
+
+El `AssertionError` mostrado después de esa ejecución pertenecía únicamente al arnés temporal de prueba, que esperaba de forma estricta la secuencia `get_task_info` → `calculate`. No fue un error de `main.py` ni del `StateGraph`.
+
+### Flujo completo
+
+`main` → cliente Groq → `StateGraph` → nodo `agent` → nodo `tools` cuando procede → nodo `agent` → `END` → respuesta final.
+
+### Resultado
+
+- Aplicación ejecutable funcional.
+- Salida UTF-8 validada, incluido el carácter Unicode `U+202F` que había provocado la incidencia anterior.
+- Sin errores reales del programa.
+- Sin exposición de credenciales ni contenido de `.env`.
