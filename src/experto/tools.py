@@ -1,10 +1,14 @@
 """Herramientas locales y validaciones seguras del asistente experto."""
 
 import json
+import logging
 from math import isfinite
 from typing import Any
 
 from .config import TASKS_FILE
+
+
+logger = logging.getLogger(__name__)
 
 
 CALCULATOR_TOOL_NAME = "calculate"
@@ -196,11 +200,26 @@ def execute_tool(tool_name: str, raw_arguments: str) -> dict[str, Any]:
     """Valida y ejecuta exclusivamente una de las herramientas permitidas."""
     # El despacho explícito evita ejecutar funciones arbitrarias por su nombre.
     if tool_name == CALCULATOR_TOOL_NAME:
-        operation, a, b = parse_calculate_arguments(raw_arguments)
-        return {"result": calculate(operation, a, b)}
+        logger.info("Inicio de herramienta permitida: calculate.")
+        try:
+            operation, a, b = parse_calculate_arguments(raw_arguments)
+            result = {"result": calculate(operation, a, b)}
+        except ValueError:
+            logger.warning("Validación o ejecución rechazada para calculate.")
+            raise
+        logger.info("Herramienta completada correctamente: calculate.")
+        return result
 
     if tool_name == TASK_INFO_TOOL_NAME:
-        task_name = parse_task_arguments(raw_arguments)
-        return get_task_info(task_name)
+        logger.info("Inicio de herramienta permitida: get_task_info.")
+        try:
+            task_name = parse_task_arguments(raw_arguments)
+        except ValueError:
+            logger.warning("Validación rechazada para get_task_info.")
+            raise
+        result = get_task_info(task_name)
+        logger.info("Herramienta completada correctamente: get_task_info.")
+        return result
 
+    logger.warning("Solicitud de herramienta no permitida rechazada.")
     raise ValueError("La herramienta solicitada no está permitida.")

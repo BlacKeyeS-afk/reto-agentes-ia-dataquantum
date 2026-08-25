@@ -1,5 +1,6 @@
 """Creación del cliente, llamada al modelo y normalización de su respuesta."""
 
+import logging
 from typing import Any
 
 from groq import Groq
@@ -7,6 +8,9 @@ from groq import Groq
 from .config import MODEL_NAME, SYSTEM_PROMPT
 from .state import AgentState
 from .tools import AVAILABLE_TOOLS
+
+
+logger = logging.getLogger(__name__)
 
 
 class AgentError(RuntimeError):
@@ -32,6 +36,7 @@ def create_groq_client(api_key: str) -> Groq:
     try:
         return Groq(api_key=api_key.strip())
     except Exception:
+        logger.error("No se pudo inicializar el cliente Groq.")
         raise AgentError("No se pudo inicializar el cliente de Groq.") from None
 
 
@@ -107,6 +112,7 @@ def normalize_assistant_message(assistant_message: Any) -> dict[str, Any]:
 
 def call_model(client: Any, messages: list[dict[str, Any]]) -> dict[str, Any]:
     """Llama a Groq y devuelve el mensaje normalizado."""
+    logger.info("Inicio de llamada al modelo.")
     try:
         response = client.chat.completions.create(
             model=MODEL_NAME,
@@ -115,25 +121,45 @@ def call_model(client: Any, messages: list[dict[str, Any]]) -> dict[str, Any]:
             tool_choice="auto",
         )
     except Exception:
+        logger.error("Error controlado durante la llamada a Groq.")
         raise AgentError("Error al consultar Groq.") from None
 
     try:
         choices = response.choices
     except AttributeError:
+        logger.error("Groq devolvió una respuesta sin estructura válida.")
         raise AgentError("El modelo devolvió una respuesta inválida.") from None
 
     if not choices:
+        logger.error("Groq devolvió una respuesta sin choices.")
         raise AgentError("El modelo devolvió una respuesta sin choices.")
 
     try:
         assistant_message = choices[0].message
     except (AttributeError, IndexError, TypeError):
+        logger.error("Groq devolvió un mensaje assistant inválido.")
         raise AgentError("El modelo devolvió un mensaje inválido.") from None
 
     if assistant_message is None:
+        logger.error("Groq devolvió un mensaje assistant vacío.")
         raise AgentError("El modelo devolvió un mensaje inválido.")
 
-    return normalize_assistant_message(assistant_message)
+    try:
+        normalized_response = normalize_assistant_message(assistant_message)
+    except AgentError:
+        logger.error("No se pudo normalizar la respuesta del modelo.")
+        raise
+
+    if normalized_response["type"] == "final":
+        logger.info("Respuesta del modelo normalizada como final.")
+    else:
+        tool_call_count = len(normalized_response["message"]["tool_calls"])
+        logger.info(
+            "Respuesta del modelo normalizada como tool_calls; cantidad=%d.",
+            tool_call_count,
+        )
+
+    return normalized_response
 
 
 def prepare_agent_state_update(

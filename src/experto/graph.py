@@ -1,6 +1,7 @@
 """Lógica del futuro nodo de herramientas del grafo experto."""
 
 import json
+import logging
 from typing import Any, Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -15,6 +16,9 @@ from .tools import (
     parse_calculate_arguments,
     parse_task_arguments,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class ToolNodeError(RuntimeError):
@@ -133,10 +137,12 @@ def execute_prepared_tool_calls(
 
 def tools_node(state: AgentState) -> AgentState:
     """Procesa los tool calls o devuelve el estado anterior con un error seguro."""
+    logger.info("Entrada al nodo tools; agent_steps=%d.", state["agent_steps"])
     try:
         prepared_calls = prepare_tool_calls(state)
         tool_messages = execute_prepared_tool_calls(prepared_calls)
     except (ToolNodeError, ValueError, TypeError) as error:
+        logger.error("El nodo tools finalizó con un error controlado.")
         return {
             "messages": list(state["messages"]),
             "agent_steps": state["agent_steps"],
@@ -144,6 +150,7 @@ def tools_node(state: AgentState) -> AgentState:
             "error": str(error),
         }
     except Exception:
+        logger.error("El nodo tools finalizó con un error inesperado.")
         return {
             "messages": list(state["messages"]),
             "agent_steps": state["agent_steps"],
@@ -151,6 +158,10 @@ def tools_node(state: AgentState) -> AgentState:
             "error": "No se pudieron ejecutar las herramientas solicitadas.",
         }
 
+    logger.info(
+        "El nodo tools finalizó correctamente; resultados=%d.",
+        len(tool_messages),
+    )
     return {
         "messages": [*state["messages"], *tool_messages],
         "agent_steps": state["agent_steps"],
@@ -161,7 +172,9 @@ def tools_node(state: AgentState) -> AgentState:
 
 def agent_node(state: AgentState, client: Any) -> AgentState:
     """Consulta al modelo o detiene el flujo ante error o límite semántico."""
+    logger.info("Entrada al nodo agent; agent_steps=%d.", state["agent_steps"])
     if state["error"] is not None:
+        logger.error("El nodo agent recibió un error controlado previo.")
         return {
             "messages": list(state["messages"]),
             "agent_steps": state["agent_steps"],
@@ -170,6 +183,7 @@ def agent_node(state: AgentState, client: Any) -> AgentState:
         }
 
     if state["agent_steps"] >= MAX_AGENT_STEPS:
+        logger.warning("Límite MAX_AGENT_STEPS alcanzado antes de otra llamada.")
         return {
             "messages": list(state["messages"]),
             "agent_steps": state["agent_steps"],
@@ -184,6 +198,7 @@ def agent_node(state: AgentState, client: Any) -> AgentState:
             updated_state["agent_steps"] >= MAX_AGENT_STEPS
             and updated_state["final_answer"] is None
         ):
+            logger.warning("Límite MAX_AGENT_STEPS alcanzado sin respuesta final.")
             return {
                 "messages": updated_state["messages"],
                 "agent_steps": updated_state["agent_steps"],
@@ -192,6 +207,7 @@ def agent_node(state: AgentState, client: Any) -> AgentState:
             }
         return updated_state
     except AgentError as error:
+        logger.error("El nodo agent finalizó con un error controlado.")
         # La llamada intentada cuenta como paso aunque termine con un error controlado.
         return {
             "messages": list(state["messages"]),
@@ -203,9 +219,14 @@ def agent_node(state: AgentState, client: Any) -> AgentState:
 
 def route_after_agent(state: AgentState) -> Literal["tools", "end"]:
     """Decide si el grafo ejecuta herramientas o finaliza."""
-    if state["error"] is not None or state["final_answer"] is not None:
+    if state["error"] is not None:
+        logger.info("Routing después de agent: end por error controlado.")
+        return "end"
+    if state["final_answer"] is not None:
+        logger.info("Routing después de agent: end por respuesta final.")
         return "end"
     if state["agent_steps"] >= MAX_AGENT_STEPS:
+        logger.info("Routing después de agent: end por límite de pasos.")
         return "end"
 
     messages = state["messages"]
@@ -217,14 +238,17 @@ def route_after_agent(state: AgentState) -> Literal["tools", "end"]:
             and isinstance(last_message.get("tool_calls"), list)
             and bool(last_message["tool_calls"])
         ):
+            logger.info("Routing después de agent: tools.")
             return "tools"
 
     # Un estado sin respuesta, error ni herramientas no debe volver a entrar al bucle.
+    logger.warning("Routing después de agent: end por estado incoherente.")
     return "end"
 
 
 def build_graph(client: Any) -> Any:
     """Construye y compila el StateGraph inyectando el cliente del modelo."""
+    logger.info("Construcción del StateGraph.")
     graph_builder = StateGraph(AgentState)
 
     def run_agent_node(state: AgentState) -> AgentState:

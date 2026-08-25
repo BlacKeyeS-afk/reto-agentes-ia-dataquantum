@@ -6,6 +6,9 @@ from pathlib import Path
 MODEL_NAME = "openai/gpt-oss-120b"
 MAX_AGENT_STEPS = 5
 TASKS_FILE = Path(__file__).resolve().parents[2] / "data" / "tareas.json"
+LOG_FILE = Path(__file__).resolve().parents[2] / "logs" / "app.log"
+LOG_LEVEL = "INFO"
+LOG_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
 SYSTEM_PROMPT = (
     "Eres un asistente inteligente de tareas. Usa calculate para realizar "
     "operaciones matemáticas y get_task_info para consultar información de "
