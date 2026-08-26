@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 conversaciones/*.json
 logs/*.log
+evals/results/*.json
