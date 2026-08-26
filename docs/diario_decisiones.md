@@ -332,3 +332,107 @@ El `AssertionError` mostrado después de esa ejecución pertenecía únicamente 
 - Salida UTF-8 validada, incluido el carácter Unicode `U+202F` que había provocado la incidencia anterior.
 - Sin errores reales del programa.
 - Sin exposición de credenciales ni contenido de `.env`.
+
+## 2026-08-26 — Nivel Experto completado
+
+El Nivel Experto queda formalmente completado después de implementar y comprobar:
+
+- Adopción razonada de LangGraph para sustituir la orquestación manual, manteniendo el SDK oficial de Groq como adaptador del modelo.
+- Arquitectura modular en `src/experto/`, con responsabilidades separadas entre configuración, estado, herramientas, modelo, grafo e interfaz.
+- Estado compartido mediante `AgentState` y construcción de un `StateGraph` con los nodos `agent` y `tools`.
+- Routing explícito mediante conditional edges para ejecutar herramientas o finalizar según el estado.
+- Ejecución multipaso, conservación de cada `tool_call_id` y devolución de resultados con `role="tool"`.
+- Validación completa de todas las solicitudes de una ronda antes de ejecutar la primera herramienta.
+- Despacho seguro y cerrado para `calculate` y `get_task_info`.
+- Límite configurable `MAX_AGENT_STEPS = 5` para impedir ciclos indefinidos.
+- CLI funcional, configuración defensiva de UTF-8 y manejo controlado de errores.
+- Logging técnico y seguro, sin conversaciones completas ni credenciales.
+- Suite automática con pytest formada por 64 tests.
+- Evaluación funcional reproducible de seis casos con métricas explícitas.
+- README completo con arquitectura, instalación, configuración, ejecución, pruebas, evaluación, seguridad y limitaciones.
+- Medidas de privacidad para credenciales, conversaciones, logs y resultados variables de evaluación.
+
+### Comparación con el Nivel Avanzado
+
+- Nivel Avanzado: `run_agent()` concentra la orquestación mediante un bucle `for`, condiciones `if/else`, gestión manual de `tool_calls` y un estado representado principalmente por `messages`.
+- Nivel Experto: `StateGraph` utiliza `AgentState`, nodos separados, conditional edges y routing explícito, con responsabilidades desacopladas entre módulos.
+
+LangGraph no se considera universalmente superior. Construir primero el agent loop manual permitió comprender el estado, las llamadas al modelo, el ciclo de herramientas y las condiciones de finalización; con esa base fue posible evaluar con criterio qué problema de orquestación resuelve después el framework.
+
+### Evaluación del agente
+
+Resultado histórico conservado:
+
+```text
+Total: 6
+PASS: 5
+FAIL: 1
+Éxito: 83.3%
+```
+
+El único `FAIL` histórico corresponde al caso de una tarea inexistente. El comportamiento real del agente fue correcto: comunicó que no había encontrado la tarea y no inventó una prioridad. El fallo automático se debió a una limitación del validador textual, que no contemplaba la expresión `no he encontrado`.
+
+El resultado histórico no se modifica retrospectivamente y permanece en `5/6`, `83.3%`.
+
+### Pruebas automáticas
+
+La suite actual obtiene:
+
+```text
+64 passed
+```
+
+Las pruebas cubren conceptualmente las herramientas, la validación de argumentos, la normalización de respuestas, el routing, la conservación de `tool_call_id`, varias herramientas en una ronda, el manejo de errores y el límite de pasos. Superar la suite aumenta la confianza en esas partes, pero no garantiza la ausencia absoluta de errores.
+
+### Seguridad y privacidad
+
+- `GROQ_API_KEY` permanece fuera del código y `.env` está ignorado por Git.
+- Las herramientas se describen mediante JSON Schema y sus nombres y argumentos se validan estrictamente.
+- Solo se permiten herramientas declaradas explícitamente mediante un despacho cerrado.
+- No se utilizan `eval()`, `exec()`, `getattr()` dinámico ni importaciones dinámicas.
+- El número de llamadas al modelo queda limitado mediante `MAX_AGENT_STEPS`.
+- El logging no almacena preguntas ni respuestas completas; los archivos de log son locales y están ignorados.
+- Los resultados variables de evaluación se mantienen locales e ignorados.
+- Los errores externos se transforman en errores controlados sin mostrar tracebacks ni credenciales al usuario.
+
+### Conceptos aprendidos
+
+- Arquitectura de agentes.
+- LangGraph y `StateGraph`.
+- Estado compartido.
+- Nodos, edges, conditional edges y routing.
+- Tool/function calling y JSON Schema.
+- Validación segura y despacho cerrado de herramientas.
+- Agent loops y límites de ejecución.
+- Logging.
+- Pytest.
+- Evaluación funcional.
+- Separación de responsabilidades.
+- Privacidad de datos.
+- Comparación entre framework e implementación manual.
+
+### Limitaciones actuales
+
+- Solo existen dos herramientas locales.
+- El modelo generativo puede variar sus respuestas entre ejecuciones.
+- No existe un checkpointer de LangGraph.
+- No existe memoria persistente del Nivel Experto entre ejecuciones.
+- Cada ejecución de la CLI comienza con una pregunta nueva.
+- Los validadores textuales pueden producir falsos negativos; la evaluación histórica contiene un ejemplo de esta limitación.
+
+Estas limitaciones describen el alcance actual y no se consideran fallos del proyecto.
+
+## Reflexión final del reto
+
+Se completó la progresión **Básico → Intermedio → Avanzado → Experto**. El Nivel Básico permitió comprender la comunicación mínima entre Python y un LLM. El Nivel Intermedio añadió memoria, contexto, roles y persistencia. El Nivel Avanzado introdujo tool/function calling y permitió construir de forma explícita un agent loop multipaso. El Nivel Experto reorganizó ese flujo con LangGraph, separó responsabilidades y añadió prácticas de proyecto como logging, tests, evaluación y documentación de uso.
+
+La conclusión técnica respaldada por la evolución del repositorio es que implementar primero el flujo manual permitió identificar con claridad qué abstrae posteriormente LangGraph. Utilizar un framework sin comprender el estado, los `tool_calls`, los resultados `role="tool"`, el routing y la finalización habría aportado menos capacidad para evaluar sus ventajas e inconvenientes.
+
+El resultado final no se presenta como un producto universalmente terminado, sino como una base técnica extensible, probada y documentada. Las preguntas subjetivas del documento sobre preferencias personales o prioridades futuras del alumno no pueden responderse objetivamente a partir del repositorio; por ello no se atribuyen opiniones personales no documentadas.
+
+### Estado
+
+- Nivel Básico: **COMPLETADO**
+- Nivel Intermedio: **COMPLETADO**
+- Nivel Avanzado: **COMPLETADO**
+- Nivel Experto: **COMPLETADO**

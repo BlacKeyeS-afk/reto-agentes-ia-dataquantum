@@ -13,7 +13,7 @@ El proyecto evoluciona desde una llamada básica a un modelo de lenguaje hasta u
 - Nivel Básico: **COMPLETADO**
 - Nivel Intermedio: **COMPLETADO**
 - Nivel Avanzado: **COMPLETADO**
-- Nivel Experto: **EN FASE FINAL**
+- Nivel Experto: **COMPLETADO**
 
 ## Evolución por niveles
 
